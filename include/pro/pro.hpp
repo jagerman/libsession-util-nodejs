@@ -107,7 +107,8 @@ class ProWrapper : public Napi::ObjectWrap<ProWrapper> {
         return obj;
     }
 
-    // §5: the response envelope is a CLOSED status enum + an optional machine slug (error_code, §5.1)
+    // §5: the response envelope is a CLOSED status enum + an optional machine slug (error_code,
+    // §5.1)
     // + an optional English diagnostic (error) — no more errors[] array. Render status as its wire
     // string ("ok"/"fail"/"error") for JS consumers; error_code/error are null on success.
     static std::string_view responseStatusToJs(session::pro_backend::ResponseStatus s) {
@@ -353,12 +354,11 @@ class ProWrapper : public Napi::ObjectWrap<ProWrapper> {
             auto obj = Napi::Object::New(env);
             emitResponseHeader(env, obj, resp);
             obj["ticket"] = toJs(env, resp.ticket);
-            // The backend returns a retry *delay*; resolve it to the absolute unix instant (ms) at
-            // which the revocation list may next be polled, clamped so it is never in the past.
-            // Handing back an absolute instant lets callers schedule the next poll without needing
-            // a clock of their own.
-            auto retryIn = std::max(resp.retry_in, 0s);
-            auto retryAt = std::chrono::system_clock::now() + retryIn;
+            // The backend returns a retry *delay*, already sanity-clamped by libsession-util; we
+            // just resolve it to the absolute unix instant (ms) at which the revocation list may
+            // next be polled. Handing back an absolute instant lets callers schedule the next poll
+            // without needing a clock of their own.
+            auto retryAt = std::chrono::system_clock::now() + resp.retry_in;
             obj["retryAtMs"] = toJsMs(env, std::chrono::floor<std::chrono::milliseconds>(retryAt));
             // retain_for stays a duration (applied per item as seen + retain_for); milliseconds for
             // nodejs.
