@@ -4,6 +4,7 @@
 #include <oxenc/base64.h>
 #include <oxenc/hex.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstddef>
 #include <vector>
@@ -355,10 +356,11 @@ class ProWrapper : public Napi::ObjectWrap<ProWrapper> {
             emitResponseHeader(env, obj, resp);
             obj["ticket"] = toJs(env, resp.ticket);
             // The backend returns a retry *delay*; resolve it to the absolute unix instant (ms) at
-            // which the revocation list may next be polled, clamped so it is never in the past.
+            // which the revocation list may next be polled, clamped to [0, 24h] so it is never in
+            // the past and a bogus value can't push the next poll wildly far out.
             // Handing back an absolute instant lets callers schedule the next poll without needing
             // a clock of their own.
-            auto retryIn = std::max(resp.retry_in, 0s);
+            auto retryIn = std::clamp<std::chrono::seconds>(resp.retry_in, 0s, 24h);
             auto retryAt = std::chrono::system_clock::now() + retryIn;
             obj["retryAtMs"] = toJsMs(env, std::chrono::floor<std::chrono::milliseconds>(retryAt));
             // retain_for stays a duration (applied per item as seen + retain_for); milliseconds for
